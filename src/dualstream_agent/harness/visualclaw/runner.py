@@ -256,26 +256,54 @@ class VisualClawArenaRunner:
         passed = sum(1 for item in results if item.get("passed"))
         skipped = sum(1 for item in results if item.get("skipped"))
         scored = max(0, len(results) - skipped)
+        outcome_accuracy = passed / scored if scored else 0.0
+        per_question = {
+            str(item["id"]): {key: value for key, value in item.items() if key != "id"}
+            for item in results
+        }
         scenario_result = {
+            "run_id": self.batch_run_id,
+            "scenario": scenario.scenario_id,
+            "backend": "dualstream-local",
+            "provider": self.config.s2.kind,
+            "model": self.config.s2.model,
+            "n_rounds": len(results),
+            "n_passed": passed,
+            "outcome_accuracy": round(outcome_accuracy, 4),
+            "keyframe_mode": keyframes.mode,
+            "per_question": per_question,
             "benchmark": "VisualClawArena",
             "dataset_version": self.dataset.version,
             "scenario_id": scenario.scenario_id,
             "source_bucket": scenario.source_bucket,
-            "run_id": self.batch_run_id,
             "started_at": started_at,
             "finished_at": datetime.now(timezone.utc).isoformat(),
             "workspace": str(work_copy.workspace),
             "clip_paths": [str(path) for path in scenario.clip_paths],
-            "keyframe_mode": keyframes.mode,
             "keyframe_labels": keyframes.labels,
             "staged_keyframes": [str(path.relative_to(work_copy.workspace)) for path in staged_frames],
             "rounds": len(results),
             "passed": passed,
             "skipped": skipped,
-            "accuracy": passed / scored if scored else 0.0,
+            "accuracy": outcome_accuracy,
             "results": results,
         }
         self._write_json(result_path, scenario_result)
+        self._write_json(
+            run_dir / "diagnostic.json",
+            {
+                "run_id": self.batch_run_id,
+                "scenario": scenario.scenario_id,
+                "diagnostic_metrics": {
+                    "rounds_executed": len(results),
+                    "outcome_accuracy": round(outcome_accuracy, 4),
+                },
+                "note": (
+                    f"backend=dualstream-local, provider={self.config.s2.kind}, "
+                    f"model={self.config.s2.model}, keyframe_mode={keyframes.mode}"
+                ),
+            },
+        )
         return scenario_result
 
     async def run(self, scenario_ids: Iterable[str] | None = None) -> dict[str, Any]:
