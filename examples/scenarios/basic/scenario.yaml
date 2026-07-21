@@ -1,0 +1,9 @@
+name: basic-text-smoke
+events:
+  - at: 0.0
+    kind: message
+    payload:
+      text: Observe quietly unless something important happens.
+      expect_response: false
+expected:
+  minimum_responses: 0

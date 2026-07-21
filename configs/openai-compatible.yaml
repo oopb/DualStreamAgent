@@ -1,0 +1,21 @@
+s1:
+  kind: openai_compatible
+  endpoint: http://127.0.0.1:8000/v1
+  model: local-fast-vlm
+s2:
+  kind: openai_compatible
+  endpoint: http://127.0.0.1:8001/v1
+  model: local-reasoning-vlm
+perception:
+  change_threshold: 0.08
+  silence_ceiling_s: 10.0
+controller:
+  response_threshold: 0.68
+  interrupt_threshold: 0.90
+  cooldown_s: 3.0
+memory:
+  path: .dualstream/memory.sqlite3
+skills:
+  root: skills
+trace:
+  path: .dualstream/traces.jsonl

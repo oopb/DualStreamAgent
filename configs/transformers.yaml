@@ -1,0 +1,31 @@
+# Replace the model IDs with local paths or Hugging Face model IDs compatible
+# with your hardware. S1 and S2 may use the same model initially.
+s1:
+  kind: transformers
+  model: Qwen/Qwen2.5-VL-3B-Instruct
+  multimodal: true
+  device_map: auto
+  dtype: auto
+  trust_remote_code: true
+s2:
+  kind: transformers
+  model: Qwen/Qwen2.5-VL-3B-Instruct
+  multimodal: true
+  device_map: auto
+  dtype: auto
+  trust_remote_code: true
+perception:
+  buffer_size: 8
+  change_threshold: 0.08
+  silence_ceiling_s: 10.0
+controller:
+  response_threshold: 0.68
+  interrupt_threshold: 0.90
+  confidence_threshold: 0.45
+  cooldown_s: 3.0
+memory:
+  path: .dualstream/memory.sqlite3
+skills:
+  root: skills
+trace:
+  path: .dualstream/traces.jsonl

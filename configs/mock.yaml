@@ -1,0 +1,24 @@
+s1:
+  kind: mock
+  model: mock
+s2:
+  kind: mock
+  model: mock
+perception:
+  buffer_size: 8
+  change_threshold: 0.08
+  silence_ceiling_s: 10.0
+controller:
+  response_threshold: 0.68
+  interrupt_threshold: 0.90
+  confidence_threshold: 0.45
+  cooldown_s: 3.0
+memory:
+  path: .dualstream/memory.sqlite3
+  top_k: 5
+skills:
+  root: skills
+  top_k: 3
+  token_budget_chars: 6000
+trace:
+  path: .dualstream/traces.jsonl
