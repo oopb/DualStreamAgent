@@ -17,6 +17,12 @@ def _as_string_list(value: Any) -> list[str]:
     return [str(value)]
 
 
+def _field(data: dict[str, Any], meta: dict[str, Any], name: str, default: Any = None) -> Any:
+    if name in data:
+        return data[name]
+    return meta.get(name, default)
+
+
 @dataclass(slots=True)
 class VisualClawRound:
     round_id: str
@@ -35,10 +41,13 @@ class VisualClawRound:
     included_in_release_eval: bool = True
     deprecated: bool = False
     feedback: str = ""
+    metadata: dict[str, Any] = field(default_factory=dict)
     raw: dict[str, Any] = field(default_factory=dict)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any], *, index: int = 0) -> "VisualClawRound":
+        meta_value = data.get("meta") or data.get("metadata") or {}
+        meta = dict(meta_value) if isinstance(meta_value, dict) else {}
         round_id = str(
             data.get("id")
             or data.get("round_id")
@@ -54,23 +63,29 @@ class VisualClawRound:
             or data.get("trigger_updates")
             or []
         )
+        round_number = _field(data, meta, "round_number")
+        if round_number is None:
+            round_number = _field(data, meta, "round", index + 1)
         return cls(
             round_id=round_id,
-            round_number=int(data.get("round_number") or data.get("round") or index + 1),
+            round_number=int(round_number),
             question=str(data.get("question") or data.get("instruction") or ""),
             round_type=raw_type,  # type: ignore[arg-type]
             evaluation=dict(data.get("eval") or data.get("evaluation") or {}),
             update_ids=_as_string_list(update_ids),
-            expected_sources=_as_string_list(data.get("expected_sources")),
-            required_modalities=_as_string_list(data.get("required_modalities")),
-            required_skills=_as_string_list(data.get("required_skills")),
-            anti_skills=_as_string_list(data.get("anti_skills")),
-            tags=_as_string_list(data.get("tags")),
-            video_required=bool(data.get("video_required", False)),
-            evidence_type=str(data.get("evidence_type") or ""),
-            included_in_release_eval=bool(data.get("included_in_release_eval", True)),
-            deprecated=bool(data.get("deprecated", False)),
+            expected_sources=_as_string_list(_field(data, meta, "expected_sources")),
+            required_modalities=_as_string_list(_field(data, meta, "required_modalities")),
+            required_skills=_as_string_list(_field(data, meta, "required_skills")),
+            anti_skills=_as_string_list(_field(data, meta, "anti_skills")),
+            tags=_as_string_list(_field(data, meta, "tags")),
+            video_required=bool(_field(data, meta, "video_required", False)),
+            evidence_type=str(_field(data, meta, "evidence_type", "") or ""),
+            included_in_release_eval=bool(
+                _field(data, meta, "included_in_release_eval", True)
+            ),
+            deprecated=bool(_field(data, meta, "deprecated", False)),
             feedback=str(data.get("feedback") or ""),
+            metadata=meta,
             raw=dict(data),
         )
 
@@ -83,6 +98,7 @@ class VisualClawRound:
         payload.setdefault("type", self.round_type)
         payload.setdefault("eval", self.evaluation)
         payload.setdefault("update_ids", self.update_ids)
+        payload.setdefault("meta", self.metadata)
         return payload
 
 
