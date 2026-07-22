@@ -71,7 +71,7 @@ def _build_release(root: Path) -> Path:
         """from pathlib import Path
 import sys
 workspace = Path(sys.argv[1])
-ok = (workspace / 'answer.txt').read_text(encoding='utf-8') == 'done\n'
+ok = (workspace / 'answer.txt').read_text(encoding='utf-8') == 'done\\n'
 print('PASS' if ok else 'FAIL')
 raise SystemExit(0 if ok else 1)
 """,

@@ -13,6 +13,21 @@ def clamp01(value: Any, default: float = 0.0) -> float:
         return default
 
 
+def coerce_bool(value: Any, default: bool = False) -> bool:
+    """Parse common model-produced boolean values without truthy-string surprises."""
+    if isinstance(value, bool):
+        return value
+    if value in (0, 1):
+        return bool(value)
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"true", "yes", "1"}:
+            return True
+        if normalized in {"false", "no", "0", ""}:
+            return False
+    return default
+
+
 def extract_json_object(text: str) -> dict[str, Any]:
     """Extract the first JSON object from model output."""
     stripped = text.strip()

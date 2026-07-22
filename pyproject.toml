@@ -33,6 +33,7 @@ arena = [
 dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.23",
+    "ruff>=0.9",
 ]
 all = [
     "torch>=2.2",
@@ -53,3 +54,6 @@ where = ["src"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py310"

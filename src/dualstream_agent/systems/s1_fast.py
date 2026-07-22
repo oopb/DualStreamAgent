@@ -4,7 +4,7 @@ from typing import Any
 
 from dualstream_agent.backends.base import ModelBackend
 from dualstream_agent.schemas import GenerationRequest, S1Signal
-from dualstream_agent.utils import clamp01, extract_json_object
+from dualstream_agent.utils import clamp01, coerce_bool, extract_json_object
 
 S1_SCHEMA: dict[str, Any] = {
     "type": "object",
@@ -94,10 +94,10 @@ Cheap visual change score: {change_score:.4f}
             confidence=clamp01(data.get("confidence")),
             urgency=clamp01(data.get("urgency")),
             novelty=clamp01(data.get("novelty"), change_score),
-            need_reasoning=bool(data.get("need_reasoning", False)),
-            need_memory=bool(data.get("need_memory", False)),
-            need_tool=bool(data.get("need_tool", False)),
-            should_respond=bool(data.get("should_respond", False)),
+            need_reasoning=coerce_bool(data.get("need_reasoning")),
+            need_memory=coerce_bool(data.get("need_memory")),
+            need_tool=coerce_bool(data.get("need_tool")),
+            should_respond=coerce_bool(data.get("should_respond")),
             response=str(data.get("response", "")),
             memory_note=str(data.get("memory_note", "")),
             raw={"model_output": result.text, "generation": result.raw},

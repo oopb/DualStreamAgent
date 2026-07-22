@@ -20,7 +20,11 @@ class FrameBuffer:
 
     def recent(self, count: int | None = None) -> list[FramePacket]:
         frames = list(self._frames)
-        return frames if count is None else frames[-count:]
+        if count is None:
+            return frames
+        if count < 0:
+            raise ValueError("count must be non-negative")
+        return frames[-count:] if count else []
 
     def clear(self) -> None:
         self._frames.clear()

@@ -19,3 +19,19 @@ def test_controller_routes_uncertain_signal_to_s2():
         now=1.0,
     )
     assert decision.reasoning_action == ReasoningAction.INVOKE_S2
+
+
+def test_controller_applies_cooldown_between_responses():
+    controller = DualController(ControllerConfig(cooldown_s=3.0))
+    signal = S1Signal(
+        relevance=1.0,
+        confidence=1.0,
+        novelty=1.0,
+        should_respond=True,
+    )
+
+    assert controller.decide(signal, now=0.0).response_action == ResponseAction.RESPOND
+    cooling_down = controller.decide(signal, now=1.0)
+    assert cooling_down.response_action == ResponseAction.WAIT
+    assert cooling_down.reason == "cooldown"
+    assert controller.decide(signal, now=3.0).response_action == ResponseAction.RESPOND

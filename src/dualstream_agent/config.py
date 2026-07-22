@@ -20,29 +20,29 @@ class BackendConfig(BaseModel):
 
 
 class PerceptionConfig(BaseModel):
-    buffer_size: int = 8
-    change_threshold: float = 0.08
-    silence_ceiling_s: float = 10.0
-    thumbnail_size: int = 32
+    buffer_size: int = Field(default=8, ge=1)
+    change_threshold: float = Field(default=0.08, ge=0.0, le=1.0)
+    silence_ceiling_s: float = Field(default=10.0, gt=0.0)
+    thumbnail_size: int = Field(default=32, ge=1)
 
 
 class ControllerConfig(BaseModel):
-    response_threshold: float = 0.68
-    interrupt_threshold: float = 0.90
-    confidence_threshold: float = 0.45
-    cooldown_s: float = 3.0
-    hysteresis_release: float = 0.50
+    response_threshold: float = Field(default=0.68, ge=0.0, le=1.0)
+    interrupt_threshold: float = Field(default=0.90, ge=0.0, le=1.0)
+    confidence_threshold: float = Field(default=0.45, ge=0.0, le=1.0)
+    cooldown_s: float = Field(default=3.0, ge=0.0)
+    hysteresis_release: float = Field(default=0.50, ge=0.0, le=1.0)
 
 
 class MemoryConfig(BaseModel):
     path: str = ".dualstream/memory.sqlite3"
-    top_k: int = 5
+    top_k: int = Field(default=5, ge=1)
 
 
 class SkillConfig(BaseModel):
     root: str = "skills"
-    top_k: int = 3
-    token_budget_chars: int = 6000
+    top_k: int = Field(default=3, ge=1)
+    token_budget_chars: int = Field(default=6000, ge=1)
 
 
 class TraceConfig(BaseModel):
