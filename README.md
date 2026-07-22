@@ -106,6 +106,21 @@ The backend supports:
 
 Model-specific processors still vary. A model should provide a working chat template and normal Transformers `generate()` behavior.
 
+The backend keeps text and multimodal message preparation in separate adapters.
+Processors without a chat template use a conservative plain-text fallback; a
+multimodal fallback also inserts the processor's declared image token.
+
+Optional real-model smoke tests are skipped by default. They use tiny random
+models to validate the loading and image-processing paths, not answer quality:
+
+```bash
+DUALSTREAM_RUN_TRANSFORMERS_INTEGRATION=1 \
+  pytest -q tests/test_transformers_backend.py::test_real_tiny_text_model
+
+DUALSTREAM_RUN_VLM_INTEGRATION=1 \
+  pytest -q tests/test_transformers_backend.py::test_real_tiny_vlm
+```
+
 ### 2. Local OpenAI-compatible server
 
 Use `configs/openai-compatible.yaml` for vLLM, SGLang, llama.cpp server, or another compatible local endpoint:

@@ -54,6 +54,9 @@ where = ["src"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+markers = [
+    "integration: optional tests that load real model weights",
+]
 
 [tool.ruff]
 target-version = "py310"

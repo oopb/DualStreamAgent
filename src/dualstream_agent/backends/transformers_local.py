@@ -1,24 +1,16 @@
 from __future__ import annotations
 
 import asyncio
-import io
 import time
 from typing import Any
 
-from PIL import Image
-
+from dualstream_agent.backends.adapters import (
+    ModelAdapter,
+    MultimodalModelAdapter,
+    TextModelAdapter,
+)
 from dualstream_agent.backends.base import ModelBackend
 from dualstream_agent.schemas import GenerationRequest, GenerationResult
-
-
-def _as_pil(image: Any) -> Image.Image:
-    if isinstance(image, Image.Image):
-        return image.convert("RGB")
-    if isinstance(image, str):
-        return Image.open(image).convert("RGB")
-    if isinstance(image, bytes):
-        return Image.open(io.BytesIO(image)).convert("RGB")
-    return Image.fromarray(image).convert("RGB")
 
 
 class TransformersBackend(ModelBackend):
@@ -52,14 +44,13 @@ class TransformersBackend(ModelBackend):
         self.transformers = transformers
         self.model_name = model
         self.multimodal = multimodal
+        major_version = int(transformers.__version__.split(".", 1)[0])
         common = {
             "device_map": device_map,
             "trust_remote_code": trust_remote_code,
             "local_files_only": local_files_only,
+            "dtype" if major_version >= 5 else "torch_dtype": dtype,
         }
-        # Transformers 5 uses dtype; current 4.x accepts torch_dtype. Try the
-        # modern spelling first and fall back for compatibility.
-        common["dtype"] = dtype
 
         if multimodal:
             self.processor = transformers.AutoProcessor.from_pretrained(
@@ -69,50 +60,66 @@ class TransformersBackend(ModelBackend):
             )
             model_cls = getattr(transformers, "AutoModelForImageTextToText", None)
             if model_cls is None:
-                model_cls = transformers.AutoModelForVision2Seq
-            try:
-                self.model = model_cls.from_pretrained(model, **common)
-            except TypeError:
-                common["torch_dtype"] = common.pop("dtype")
-                self.model = model_cls.from_pretrained(model, **common)
+                model_cls = getattr(transformers, "AutoModelForVision2Seq", None)
+            if model_cls is None:
+                model_cls = getattr(transformers, "AutoModelForMultimodalLM", None)
+            if model_cls is None:
+                raise RuntimeError("This Transformers version has no multimodal auto model class")
+            self.model = model_cls.from_pretrained(model, **common)
             self.tokenizer = None
+            self.adapter: ModelAdapter = MultimodalModelAdapter(self.processor)
         else:
             self.tokenizer = transformers.AutoTokenizer.from_pretrained(
                 model,
                 trust_remote_code=trust_remote_code,
                 local_files_only=local_files_only,
             )
-            try:
-                self.model = transformers.AutoModelForCausalLM.from_pretrained(model, **common)
-            except TypeError:
-                common["torch_dtype"] = common.pop("dtype")
-                self.model = transformers.AutoModelForCausalLM.from_pretrained(model, **common)
+            self.model = transformers.AutoModelForCausalLM.from_pretrained(model, **common)
             self.processor = None
+            self.adapter = TextModelAdapter(self.tokenizer)
         self.model.eval()
 
     async def generate(self, request: GenerationRequest) -> GenerationResult:
-        return await asyncio.to_thread(self._generate_sync, request)
+        if request.timeout_s is not None and request.timeout_s <= 0:
+            raise ValueError("timeout_s must be positive")
+        work = asyncio.to_thread(self._generate_sync, request)
+        if request.timeout_s is None:
+            return await work
+        try:
+            return await asyncio.wait_for(work, timeout=request.timeout_s)
+        except TimeoutError as exc:
+            raise TimeoutError(
+                f"Transformers generation timed out after {request.timeout_s}s"
+            ) from exc
 
     def _generate_sync(self, request: GenerationRequest) -> GenerationResult:
         started = time.perf_counter()
-        with self.torch.inference_mode():
-            if self.multimodal:
-                inputs = self._prepare_multimodal(request)
+        try:
+            with self.torch.inference_mode():
+                inputs = self._move_inputs(self.adapter.prepare_inputs(request))
                 input_length = int(inputs["input_ids"].shape[-1])
-            else:
-                inputs = self._prepare_text(request)
-                input_length = int(inputs["input_ids"].shape[-1])
+                if "attention_mask" not in inputs:
+                    inputs["attention_mask"] = self.torch.ones_like(inputs["input_ids"])
 
-            generate_kwargs: dict[str, Any] = {
-                "max_new_tokens": request.max_new_tokens,
-                "do_sample": request.temperature > 0,
-            }
-            if request.temperature > 0:
-                generate_kwargs["temperature"] = request.temperature
-            outputs = self.model.generate(**inputs, **generate_kwargs)
-            generated = outputs[:, input_length:]
-            decoder = self.processor if self.multimodal else self.tokenizer
-            text = decoder.batch_decode(generated, skip_special_tokens=True)[0].strip()
+                generate_kwargs: dict[str, Any] = {
+                    "max_new_tokens": request.max_new_tokens,
+                    "do_sample": request.temperature > 0,
+                }
+                if request.temperature > 0:
+                    generate_kwargs["temperature"] = request.temperature
+                if self.adapter.pad_token_id is not None:
+                    generate_kwargs["pad_token_id"] = self.adapter.pad_token_id
+                outputs = self.model.generate(**inputs, **generate_kwargs)
+                if getattr(self.model.config, "is_encoder_decoder", False):
+                    generated = outputs
+                else:
+                    generated = outputs[:, input_length:]
+                text = self.adapter.decode_output(generated)
+                text = self._apply_stop(text, request.stop)
+        except Exception as exc:
+            raise RuntimeError(
+                f"Transformers generation failed for {self.model_name}: {exc}"
+            ) from exc
 
         return GenerationResult(
             text=text,
@@ -121,66 +128,23 @@ class TransformersBackend(ModelBackend):
             latency_s=time.perf_counter() - started,
         )
 
-    def _prepare_text(self, request: GenerationRequest) -> dict[str, Any]:
-        assert self.tokenizer is not None
-        if hasattr(self.tokenizer, "apply_chat_template"):
-            text = self.tokenizer.apply_chat_template(
-                request.messages,
-                tokenize=False,
-                add_generation_prompt=True,
-            )
-            inputs = self.tokenizer(text, return_tensors="pt", add_special_tokens=False)
-        else:
-            text = "\n".join(
-                f"{m.get('role', 'user')}: {m.get('content', '')}" for m in request.messages
-            )
-            inputs = self.tokenizer(text, return_tensors="pt")
-        return self._move_inputs(inputs)
-
-    def _prepare_multimodal(self, request: GenerationRequest) -> dict[str, Any]:
-        assert self.processor is not None
-        messages = [dict(message) for message in request.messages]
-        images = [_as_pil(image) for image in request.images]
-        if images:
-            user_index = next(
-                (i for i in range(len(messages) - 1, -1, -1) if messages[i].get("role") == "user"),
+    def _move_inputs(self, inputs: Any) -> dict[str, Any]:
+        target = getattr(self.model, "device", None)
+        if target is None or getattr(target, "type", None) == "meta":
+            target = next(
+                (
+                    parameter.device
+                    for parameter in self.model.parameters()
+                    if getattr(parameter.device, "type", None) != "meta"
+                ),
                 None,
             )
-            if user_index is None:
-                messages.append({"role": "user", "content": ""})
-                user_index = len(messages) - 1
-            original = messages[user_index].get("content", "")
-            content: list[dict[str, Any]] = [{"type": "image", "image": image} for image in images]
-            content.append({"type": "text", "text": str(original)})
-            messages[user_index]["content"] = content
-
-        try:
-            inputs = self.processor.apply_chat_template(
-                messages,
-                tokenize=True,
-                add_generation_prompt=True,
-                return_dict=True,
-                return_tensors="pt",
-            )
-        except (TypeError, ValueError):
-            # Compatibility fallback for processors that expect text and images
-            # as separate arguments.
-            text_messages = []
-            for message in request.messages:
-                text_messages.append(
-                    {"role": message.get("role", "user"), "content": str(message.get("content", ""))}
-                )
-            prompt = self.processor.apply_chat_template(
-                text_messages,
-                tokenize=False,
-                add_generation_prompt=True,
-            )
-            inputs = self.processor(text=prompt, images=images or None, return_tensors="pt")
-        return self._move_inputs(inputs)
-
-    def _move_inputs(self, inputs: Any) -> dict[str, Any]:
-        target = next(self.model.parameters()).device
         moved: dict[str, Any] = {}
         for key, value in dict(inputs).items():
-            moved[key] = value.to(target) if hasattr(value, "to") else value
+            moved[key] = value.to(target) if target is not None and hasattr(value, "to") else value
         return moved
+
+    @staticmethod
+    def _apply_stop(text: str, stop: list[str] | None) -> str:
+        positions = [text.find(token) for token in stop or [] if token and token in text]
+        return text[: min(positions)].rstrip() if positions else text

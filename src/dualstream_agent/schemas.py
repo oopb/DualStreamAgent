@@ -71,6 +71,7 @@ class GenerationRequest:
     temperature: float = 0.0
     stop: list[str] | None = None
     response_schema: dict[str, Any] | None = None
+    timeout_s: float | None = None
 
 
 @dataclass(slots=True)
@@ -79,6 +80,7 @@ class GenerationResult:
     prompt_tokens: int | None = None
     completion_tokens: int | None = None
     latency_s: float | None = None
+    first_token_latency_s: float | None = None
     raw: Any = None
 
 
