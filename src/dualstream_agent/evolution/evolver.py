@@ -72,7 +72,7 @@ Failures:
             tags=[str(tag) for tag in data.get("tags", [])],
             source_trace_ids=[str(item.get("trace_id", "")) for item in compact],
         )
-        self.skills.write_candidate(
+        self.skills.write_candidate_skill(
             name=proposal.name,
             description=proposal.description,
             body=proposal.body,

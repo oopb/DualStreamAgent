@@ -261,6 +261,13 @@ failed traces
 
 Generated skills are never activated directly in the live stream.
 
+Candidate skills are stored under `skills/.candidates/<name>/SKILL.md`, separate
+from active skills. Validation results record score, latency, token, and
+regression deltas. Only candidates whose utility passes the configured threshold
+are promoted to `skills/<name>/SKILL.md`; disabled skills remain inspectable but
+are excluded from retrieval. Skill retrieval is top-k and character-budgeted,
+and the manager keeps a bounded retrieval audit log.
+
 ## Harness scenario format
 
 ```yaml

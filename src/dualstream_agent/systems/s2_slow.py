@@ -43,7 +43,11 @@ class S2SlowSystem:
     ) -> str:
         query = " ".join(filter(None, [user_goal, signal.summary, signal.event]))
         memories = self.memory.search(query, top_k=self.memory_top_k)
-        skills = self.skills.retrieve(query, top_k=self.skill_top_k)
+        skills = self.skills.retrieve_skills(
+            query,
+            top_k=self.skill_top_k,
+            char_budget=self.skill_char_budget,
+        )
         memory_context = "\n".join(
             f"- [{item.kind}] {item.summary or item.content}" for item in memories
         ) or "No relevant long-term memory."

@@ -14,6 +14,7 @@ class ValidationResult:
     baseline_score: float
     candidate_score: float
     latency_delta: float
+    token_delta: float
     regression_rate: float
     utility: float
     promoted: bool
@@ -27,11 +28,13 @@ class ReplayValidator:
         skills: SkillManager,
         *,
         latency_weight: float = 0.05,
+        token_weight: float = 0.001,
         regression_weight: float = 0.5,
         minimum_gain: float = 0.01,
     ):
         self.skills = skills
         self.latency_weight = latency_weight
+        self.token_weight = token_weight
         self.regression_weight = regression_weight
         self.minimum_gain = minimum_gain
 
@@ -43,11 +46,15 @@ class ReplayValidator:
         latency_delta = float(treatment.get("latency_s", 0.0)) - float(
             baseline.get("latency_s", 0.0)
         )
+        token_delta = float(treatment.get("tokens", 0.0)) - float(
+            baseline.get("tokens", 0.0)
+        )
         regression_rate = float(treatment.get("regression_rate", 0.0))
         utility = (
             candidate_score
             - baseline_score
             - self.latency_weight * max(0.0, latency_delta)
+            - self.token_weight * max(0.0, token_delta)
             - self.regression_weight * regression_rate
         )
         promoted = utility >= self.minimum_gain
@@ -56,10 +63,13 @@ class ReplayValidator:
             baseline_score=baseline_score,
             candidate_score=candidate_score,
             latency_delta=latency_delta,
+            token_delta=token_delta,
             regression_rate=regression_rate,
             utility=utility,
             promoted=promoted,
         )
+        validation = asdict(result)
+        self.skills.record_candidate_validation(candidate, validation)
         if promoted:
-            self.skills.promote(candidate, asdict(result))
+            self.skills.promote_skill(candidate, validation)
         return result
