@@ -15,9 +15,11 @@ from dualstream_agent.runtime.trace import TraceStore
 from dualstream_agent.schemas import (
     ControllerDecision,
     FramePacket,
+    MemoryAction,
     ReasoningAction,
     ResponseAction,
     RuntimeOutput,
+    S1Signal,
 )
 from dualstream_agent.skills.manager import SkillManager
 from dualstream_agent.systems.controller import DualController
@@ -107,8 +109,9 @@ class DualStreamSession:
             decision = ControllerDecision(
                 response_action=ResponseAction.WAIT,
                 reasoning_action=ReasoningAction.S1_ONLY,
+                memory_action=MemoryAction.NONE,
+                priority=change.score,
                 reason="perception_change_gate_skip",
-                score=change.score,
             )
             trace_id = self.trace.append(
                 {
@@ -120,8 +123,6 @@ class DualStreamSession:
                     "decision": decision,
                 }
             )
-            from dualstream_agent.schemas import S1Signal
-
             return RuntimeOutput(
                 timestamp=now,
                 decision=decision,
@@ -154,31 +155,21 @@ class DualStreamSession:
                 decision = ControllerDecision(
                     response_action=ResponseAction.RESPOND,
                     reasoning_action=decision.reasoning_action,
+                    memory_action=decision.memory_action,
+                    priority=decision.priority,
                     reason=f"{decision.reason}_completed",
-                    score=decision.score,
                 )
                 self.controller.state.last_response_at = now
         elif decision.response_action in {ResponseAction.RESPOND, ResponseAction.INTERRUPT}:
             response = signal.response or signal.summary
 
-        if signal.memory_note or signal.summary:
-            self.memory.add(
-                MemoryItem(
-                    content=signal.memory_note or signal.summary,
-                    summary=signal.summary,
-                    kind="episodic",
-                    importance=max(signal.relevance, signal.urgency),
-                    confidence=signal.confidence,
-                    session_id=self.session_id,
-                    timestamp=now,
-                    tags=[tag for tag in [signal.event] if tag],
-                    metadata={
-                        "frame_id": frame.frame_id,
-                        "source": source,
-                        "decision": decision.reason,
-                    },
-                )
-            )
+        self._store_episode(
+            signal,
+            decision,
+            now,
+            source=source,
+            metadata={"frame_id": frame.frame_id},
+        )
 
         trace_id = self.trace.append(
             {
@@ -223,11 +214,13 @@ class DualStreamSession:
             decision = ControllerDecision(
                 response_action=ResponseAction.RESPOND,
                 reasoning_action=decision.reasoning_action,
+                memory_action=decision.memory_action,
+                priority=decision.priority,
                 reason=f"{decision.reason}_completed",
-                score=decision.score,
             )
         elif decision.response_action in {ResponseAction.RESPOND, ResponseAction.INTERRUPT}:
             response = signal.response or signal.summary
+        self._store_episode(signal, decision, now, source="text")
         trace_id = self.trace.append(
             {
                 "session_id": self.session_id,
@@ -240,6 +233,38 @@ class DualStreamSession:
             }
         )
         return RuntimeOutput(now, decision, signal, response, trace_id)
+
+    def _store_episode(
+        self,
+        signal: S1Signal,
+        decision: ControllerDecision,
+        timestamp: float,
+        *,
+        source: str,
+        metadata: dict[str, Any] | None = None,
+    ) -> None:
+        if decision.memory_action != MemoryAction.STORE_EPISODE:
+            return
+        content = signal.memory_note or signal.summary
+        if not content:
+            return
+        self.memory.add(
+            MemoryItem(
+                content=content,
+                summary=signal.summary,
+                kind="episodic",
+                importance=max(signal.relevance, signal.urgency),
+                confidence=signal.confidence,
+                session_id=self.session_id,
+                timestamp=timestamp,
+                tags=[signal.event] if signal.event else [],
+                metadata={
+                    **(metadata or {}),
+                    "source": source,
+                    "decision": decision.reason,
+                },
+            )
+        )
 
     async def close(self) -> None:
         if self.s2_backend is not self.s1_backend:

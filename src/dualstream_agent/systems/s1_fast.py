@@ -11,6 +11,7 @@ S1_SCHEMA: dict[str, Any] = {
     "properties": {
         "summary": {"type": "string"},
         "event": {"type": "string"},
+        "semantic_change": {"type": "number", "minimum": 0, "maximum": 1},
         "relevance": {"type": "number", "minimum": 0, "maximum": 1},
         "confidence": {"type": "number", "minimum": 0, "maximum": 1},
         "urgency": {"type": "number", "minimum": 0, "maximum": 1},
@@ -21,10 +22,12 @@ S1_SCHEMA: dict[str, Any] = {
         "should_respond": {"type": "boolean"},
         "response": {"type": "string"},
         "memory_note": {"type": "string"},
+        "reason": {"type": "string"},
     },
     "required": [
         "summary",
         "event",
+        "semantic_change",
         "relevance",
         "confidence",
         "urgency",
@@ -35,6 +38,7 @@ S1_SCHEMA: dict[str, Any] = {
         "should_respond",
         "response",
         "memory_note",
+        "reason",
     ],
     "additionalProperties": False,
 }
@@ -90,6 +94,7 @@ Cheap visual change score: {change_score:.4f}
         return S1Signal(
             summary=str(data.get("summary", "")),
             event=str(data.get("event", "")),
+            semantic_change=clamp01(data.get("semantic_change")),
             relevance=clamp01(data.get("relevance")),
             confidence=clamp01(data.get("confidence")),
             urgency=clamp01(data.get("urgency")),
@@ -100,5 +105,6 @@ Cheap visual change score: {change_score:.4f}
             should_respond=coerce_bool(data.get("should_respond")),
             response=str(data.get("response", "")),
             memory_note=str(data.get("memory_note", "")),
+            reason=str(data.get("reason", "")),
             raw={"model_output": result.text, "generation": result.raw},
         )

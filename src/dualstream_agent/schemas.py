@@ -10,7 +10,7 @@ class ResponseAction(str, Enum):
     WAIT = "wait"
     RESPOND = "respond"
     INTERRUPT = "interrupt"
-    UPDATE = "update"
+    UPDATE_PREVIOUS = "update_previous"
     ASK_CLARIFICATION = "ask_clarification"
 
 
@@ -19,6 +19,20 @@ class ReasoningAction(str, Enum):
     INVOKE_S2 = "invoke_s2"
     RETRIEVE_MEMORY = "retrieve_memory"
     INVOKE_TOOL = "invoke_tool"
+
+
+class MemoryAction(str, Enum):
+    NONE = "none"
+    STORE_WORKING = "store_working"
+    STORE_EPISODE = "store_episode"
+
+
+class SessionStatus(str, Enum):
+    SILENT = "silent"
+    PENDING = "pending"
+    WAITING_FOR_S2 = "waiting_for_s2"
+    SPEAKING = "speaking"
+    COOLDOWN = "cooldown"
 
 
 @dataclass(slots=True)
@@ -42,6 +56,7 @@ class ChangeScore:
 class S1Signal:
     summary: str = ""
     event: str = ""
+    semantic_change: float = 0.0
     relevance: float = 0.0
     confidence: float = 0.0
     urgency: float = 0.0
@@ -52,6 +67,7 @@ class S1Signal:
     should_respond: bool = False
     response: str = ""
     memory_note: str = ""
+    reason: str = ""
     raw: dict[str, Any] = field(default_factory=dict)
 
 
@@ -59,8 +75,9 @@ class S1Signal:
 class ControllerDecision:
     response_action: ResponseAction
     reasoning_action: ReasoningAction
+    memory_action: MemoryAction
+    priority: float
     reason: str
-    score: float = 0.0
 
 
 @dataclass(slots=True)

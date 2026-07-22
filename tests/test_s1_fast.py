@@ -20,6 +20,7 @@ async def test_s1_uses_safe_defaults_for_malformed_output():
     assert signal.should_respond is False
     assert signal.need_reasoning is False
     assert signal.novelty == pytest.approx(0.4)
+    assert signal.semantic_change == 0.0
     assert signal.raw["model_output"] == "not json"
 
 
@@ -27,10 +28,12 @@ async def test_s1_uses_safe_defaults_for_malformed_output():
 async def test_s1_does_not_treat_false_strings_as_true():
     response = json.dumps(
         {
+            "semantic_change": 2.0,
             "need_reasoning": "false",
             "need_memory": "no",
             "need_tool": "0",
             "should_respond": "false",
+            "reason": "nothing changed",
         }
     )
     system = S1FastSystem(MockBackend([response]), "system")
@@ -46,3 +49,5 @@ async def test_s1_does_not_treat_false_strings_as_true():
     assert signal.need_memory is False
     assert signal.need_tool is False
     assert signal.should_respond is False
+    assert signal.semantic_change == 1.0
+    assert signal.reason == "nothing changed"

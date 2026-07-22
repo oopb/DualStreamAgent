@@ -1,5 +1,5 @@
 from dualstream_agent.config import ControllerConfig
-from dualstream_agent.schemas import ReasoningAction, ResponseAction, S1Signal
+from dualstream_agent.schemas import MemoryAction, ReasoningAction, ResponseAction, S1Signal
 from dualstream_agent.systems.controller import DualController
 
 
@@ -10,6 +10,8 @@ def test_controller_interrupts_urgent_event():
         now=1.0,
     )
     assert decision.response_action == ResponseAction.INTERRUPT
+    assert decision.memory_action == MemoryAction.NONE
+    assert decision.priority == 0.95
 
 
 def test_controller_routes_uncertain_signal_to_s2():
@@ -19,6 +21,23 @@ def test_controller_routes_uncertain_signal_to_s2():
         now=1.0,
     )
     assert decision.reasoning_action == ReasoningAction.INVOKE_S2
+
+
+def test_controller_can_store_memory_while_waiting():
+    controller = DualController(ControllerConfig())
+    decision = controller.decide(
+        S1Signal(
+            summary="The cup moved.",
+            memory_note="Cup moved near the edge.",
+            need_reasoning=True,
+            confidence=0.8,
+        ),
+        now=1.0,
+    )
+
+    assert decision.response_action == ResponseAction.WAIT
+    assert decision.reasoning_action == ReasoningAction.INVOKE_S2
+    assert decision.memory_action == MemoryAction.STORE_EPISODE
 
 
 def test_controller_applies_cooldown_between_responses():

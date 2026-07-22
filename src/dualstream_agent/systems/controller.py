@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from dualstream_agent.config import ControllerConfig
 from dualstream_agent.schemas import (
     ControllerDecision,
+    MemoryAction,
     ReasoningAction,
     ResponseAction,
     S1Signal,
@@ -30,22 +31,29 @@ class DualController:
             self.state.last_response_at is not None
             and now - self.state.last_response_at < self.config.cooldown_s
         )
+        memory_action = (
+            MemoryAction.STORE_EPISODE
+            if signal.memory_note or signal.summary
+            else MemoryAction.NONE
+        )
 
         if signal.urgency >= self.config.interrupt_threshold:
             self.state.last_response_at = now
             return ControllerDecision(
                 response_action=ResponseAction.INTERRUPT,
                 reasoning_action=ReasoningAction.S1_ONLY,
+                memory_action=memory_action,
+                priority=signal.urgency,
                 reason="urgency_above_interrupt_threshold",
-                score=signal.urgency,
             )
 
         if signal.need_tool:
             return ControllerDecision(
                 response_action=ResponseAction.WAIT,
                 reasoning_action=ReasoningAction.INVOKE_TOOL,
+                memory_action=memory_action,
+                priority=combined,
                 reason="s1_requested_tool",
-                score=combined,
             )
 
         if signal.need_reasoning or signal.need_memory or signal.confidence < self.config.confidence_threshold:
@@ -57,8 +65,9 @@ class DualController:
             return ControllerDecision(
                 response_action=ResponseAction.WAIT,
                 reasoning_action=action,
+                memory_action=memory_action,
+                priority=combined,
                 reason="slow_path_required",
-                score=combined,
             )
 
         threshold = (
@@ -70,14 +79,16 @@ class DualController:
             return ControllerDecision(
                 response_action=ResponseAction.RESPOND,
                 reasoning_action=ReasoningAction.S1_ONLY,
+                memory_action=memory_action,
+                priority=combined,
                 reason="s1_response_gate_open",
-                score=combined,
             )
 
         self.state.speaking = False
         return ControllerDecision(
             response_action=ResponseAction.WAIT,
             reasoning_action=ReasoningAction.S1_ONLY,
+            memory_action=memory_action,
+            priority=combined,
             reason="silence_preferred" if not cooling_down else "cooldown",
-            score=combined,
         )

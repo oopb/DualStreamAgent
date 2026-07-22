@@ -15,6 +15,7 @@ class MockBackend(ModelBackend):
             {
                 "summary": "No important change.",
                 "event": "none",
+                "semantic_change": 0.0,
                 "relevance": 0.0,
                 "confidence": 1.0,
                 "urgency": 0.0,
@@ -25,6 +26,7 @@ class MockBackend(ModelBackend):
                 "should_respond": False,
                 "response": "",
                 "memory_note": "",
+                "reason": "no relevant event",
             }
         )
         self.responses = deque(responses or [default])

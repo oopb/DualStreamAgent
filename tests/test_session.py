@@ -40,4 +40,5 @@ async def test_session_can_respond_from_s1(tmp_path):
     output = await session.process_frame(np.zeros((16, 16, 3), dtype=np.uint8), timestamp=0.0)
     assert output.decision.response_action == ResponseAction.INTERRUPT
     assert output.response == "The cup is falling!"
+    assert session.memory.count() == 1
     await session.close()
