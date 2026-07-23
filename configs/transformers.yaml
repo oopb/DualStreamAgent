@@ -2,14 +2,14 @@
 # with your hardware. S1 and S2 may use the same model initially.
 s1:
   kind: transformers
-  model: Qwen/Qwen2.5-VL-3B-Instruct
+  model: /home/cc/ccx/model/Qwen/Qwen2.5-VL-7B-Instruct
   multimodal: true
   device_map: auto
   dtype: auto
   trust_remote_code: true
 s2:
   kind: transformers
-  model: Qwen/Qwen2.5-VL-3B-Instruct
+  model: /home/cc/ccx/model/Qwen/Qwen2.5-VL-7B-Instruct
   multimodal: true
   device_map: auto
   dtype: auto
